@@ -1,0 +1,59 @@
+#Up {
+    grid-area: up;
+}
+
+#Down {
+    grid-area: down;
+}
+
+#Left {
+    grid-area: left;
+}
+
+#Right {
+    grid-area: right;
+}
+
+#Restart {
+    grid-area: restart;
+}
+
+#buttons {
+    display: grid;
+    grid-template-areas: 
+    " . up . "
+    "left down right"
+    " . restart . ";
+}
+
+#grid {
+    display: grid;
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.cell {
+    aspect-ratio: 1/1;
+    min-height: 8vh;
+    min-width: 8vh;
+    border-style: solid;
+    border-radius: 1px;
+}
+
+.snake {
+    background-color: black;
+}
+
+.food {
+    background-color: green;
+}
+
+.input {
+    display: none;
+}
