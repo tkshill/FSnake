@@ -1,28 +1,30 @@
+/// All the types and logic for implementing a simple game of Snake
 namespace Snake
 
-type Position = int * int
+[<StructAttribute>]
+type Game = { Food: Food; Snake: Snake; Size: int; Status: Status }
 
-type Direction =
+and Snake = { Head: Head; Tail: Tail; Direction: Direction }
+
+and Head = Position
+
+and Tail = Position list
+
+and Food = Position
+
+and Position = int * int
+
+and Status =
+  | Active
+  | Won
+  | Lost
+
+and Direction =
   | Up
   | Down
   | Left
   | Right
 
-type Head = Position
-
-type Tail = Position list
-
-type Snake = { Head: Head; Tail: Tail; Direction: Direction }
-
-type Food = Position
-
-type Status =
-  | Active
-  | Won
-  | Lost
-
-[<StructAttribute>]
-type Game = { Food: Food; Snake: Snake; Size: int; Status: Status }
 
 /// This module contains all the logic for running the snake game itself.
 [<RequireQualifiedAccess>]
@@ -48,17 +50,24 @@ module Game =
         for column in 1..size -> (row, column)
     }
 
-  let creatFood size occupied =
+  /// Accepts an int representing the size of a grid, and a list of positions representing
+  /// occupied positions. Returns a position at random that is in the grid but isn't
+  /// currently occupied.
+  let createFood size occupied =
     gamePositions size
     |> Seq.filter (not << (flip List.contains) occupied)
     |> shuffle
     |> Seq.head
 
+  /// Accepts an integer representing the length of the grid and creates the initial
+  /// configuration for the game. The snake always starts in one of the central squares
+  /// and the food is placed at random.
   let init size =
 
+    // the (/) operator rounds down for integer division
     let head = (size / 2, size / 2)
 
-    let food = creatFood size <| List.singleton head
+    let food = createFood size [ head ]
 
     let direction = [ Up; Down; Left; Right ] |> shuffle |> Seq.head
 
@@ -69,17 +78,23 @@ module Game =
 
   let (|GrowingTail|_|) gotFood _ = if gotFood then Some() else None
 
-  let (|NoTail|RegularTail|) snake =
-    if List.isEmpty snake.Tail then NoTail else RegularTail
+  let (|NoTail|RegularTail|) snake = if snake.Tail.IsEmpty then NoTail else RegularTail
 
-  let private updateSnake snake justAte =
+  /// given the current snake and a boolean representing whether it's about to eat,
+  /// we can create a new snake.
+  let private updateSnake snake aboutToEat =
     let newTail =
       match snake with
-      | GrowingTail justAte -> snake.Head :: snake.Tail
+      | GrowingTail aboutToEat -> snake.Head :: snake.Tail
       | NoTail -> []
       | RegularTail ->
         snake.Head
         :: (List.rev << List.tail << List.rev) snake.Tail
+
+    // (List.rev << List.tail << List.rev) is a quick way to remove an element
+    // from the back of a list since there's no native list function to do that.
+    // Reverse it, then use List.tail to get everything after the first element,
+    // then reverse it again.
 
     { snake with Head = nextPosition snake.Head snake.Direction; Tail = newTail }
 
@@ -93,12 +108,18 @@ module Game =
   let (|Perpendicular|_|) dir1 dir2 =
     if dir1 <> opposite dir2 && dir1 <> dir2 then Some() else None
 
+  /// Accepts a game and a direction to change to and returns a game. You can
+  /// only change directions perpendicularly to whichever way you're going.
+  /// e.g. If you're going Up, you can change to Left or Right but not Up or
+  /// Down. How would you even go more Up anyway?
   let changeDirection game proposedChange =
     match proposedChange with
     | Perpendicular game.Snake.Direction ->
       { game with Snake = { game.Snake with Direction = proposedChange } }
     | _ -> game
 
+  /// There are six distinct states the game can be in that matter for the purposes
+  /// of advancement.
   let (|AlreadyOver|HitsEdge|IsFull|HitsItself|EatsFood|JustVibing|) game =
     let newHead = nextPosition game.Snake.Head game.Snake.Direction
 
@@ -116,6 +137,7 @@ module Game =
     else
       JustVibing
 
+  /// Steps the game forward by one 'Tick' if the game isn't already over.
   let advance game =
     match game with
     | AlreadyOver -> game
@@ -125,14 +147,6 @@ module Game =
     | JustVibing -> { game with Snake = updateSnake game.Snake false }
     | EatsFood ->
       let newSnake = updateSnake game.Snake true
-
-      let newFood =
-        gamePositions game.Size
-        |> Seq.filter (
-          not
-          << (flip List.contains) (newSnake.Head :: newSnake.Tail)
-        )
-        |> shuffle
-        |> Seq.head
+      let newFood = createFood game.Size (newSnake.Head :: newSnake.Tail)
 
       { game with Snake = newSnake; Food = newFood }
